@@ -9,10 +9,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wandb
 
 from utils.data_loader import load_data
-from ann.neural_layer import DenseLayer
-from ann.activations import ReLU, Sigmoid, Tanh, Softmax
-from ann.objective_functions import CrossEntropy, MSE
-from ann.optimizers import SGD, Momentum, RMSProp, Adam, NAG, Nadam
 from ann.neural_network import NeuralNetwork
 
 
@@ -38,50 +34,6 @@ def parse_arguments():
     return parser.parse_args()
 
 
-def get_activation(name):
-    if name == "relu":    return ReLU()
-    if name == "sigmoid": return Sigmoid()
-    if name == "tanh":    return Tanh()
-    raise ValueError(f"Unknown activation: {name}")
-
-
-def get_loss(name):
-    if name == "cross_entropy":      return CrossEntropy()
-    if name == "mean_squared_error": return MSE()
-    raise ValueError(f"Unknown loss: {name}")
-
-
-def get_optimizer(name, lr):
-    if name == "sgd":      return SGD(lr)
-    if name == "momentum": return Momentum(lr)
-    if name == "nag":      return NAG(lr)
-    if name == "rmsprop":  return RMSProp(lr)
-    if name == "adam":     return Adam(lr)
-    if name == "nadam":    return Nadam(lr)
-    raise ValueError(f"Unknown optimizer: {name}")
-
-
-def build_network(hidden_sizes, activation, weight_init):
-    layers, activations = [], []
-    prev = 784
-    for h in hidden_sizes:
-        layers.append(DenseLayer(prev, h, weight_init))
-        activations.append(get_activation(activation))
-        prev = h
-    layers.append(DenseLayer(prev, 10, weight_init))
-    activations.append(Softmax())
-    return layers, activations
-
-
-def save_weights(model, path):
-    """Save as dict: {'W0': ..., 'b0': ..., 'W1': ..., 'b1': ...}"""
-    weights_dict = {}
-    for i, layer in enumerate(model.layers):
-        weights_dict[f'W{i}'] = layer.W
-        weights_dict[f'b{i}'] = layer.b
-    np.save(path, weights_dict)
-
-
 def main():
     args = parse_arguments()
 
@@ -90,11 +42,8 @@ def main():
     dataset_name = "fashion_mnist" if args.dataset == "fashion" else args.dataset
     X_train, y_train, X_val, y_val, X_test, y_test_oh, y_test = load_data(dataset_name)
 
-    layers, activations = build_network(args.hidden_size, args.activation, args.weight_init)
-    loss_fn   = get_loss(args.loss)
-    optimizer = get_optimizer(args.optimizer, args.learning_rate)
-    model     = NeuralNetwork(layers, activations, loss_fn, optimizer,
-                              weight_decay=args.weight_decay)
+    model   = NeuralNetwork(args)
+    loss_fn = model.loss_fn
 
     best_val_acc = 0.0
     src_dir = os.path.dirname(os.path.abspath(__file__))
@@ -102,10 +51,10 @@ def main():
     for epoch in range(args.epochs):
         model.train(X_train, y_train, 1, args.batch_size)
 
-        y_pred_train = model.forward(X_train)
-        train_loss   = loss_fn.forward(y_pred_train, y_train)
-        train_acc    = np.mean(model.predict(X_train) == np.argmax(y_train, axis=1))
-        val_acc      = np.mean(model.predict(X_val) == np.argmax(y_val, axis=1))
+        y_pred_train, _ = model.forward(X_train)
+        train_loss  = loss_fn.forward(y_pred_train, y_train)
+        train_acc   = np.mean(model.predict(X_train) == np.argmax(y_train, axis=1))
+        val_acc     = np.mean(model.predict(X_val)   == np.argmax(y_val,   axis=1))
 
         print(f"Epoch {epoch+1:3d}  loss={train_loss:.4f}  "
               f"train_acc={train_acc:.4f}  val_acc={val_acc:.4f}")
@@ -119,7 +68,7 @@ def main():
 
         if val_acc > best_val_acc:
             best_val_acc = val_acc
-            save_weights(model, os.path.join(src_dir, "best_model.npy"))
+            np.save(os.path.join(src_dir, "best_model.npy"), model.get_weights())
             with open(os.path.join(src_dir, "config.json"), "w") as f:
                 json.dump(vars(args), f, indent=4)
 

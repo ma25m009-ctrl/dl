@@ -74,16 +74,12 @@ def build_network(hidden_sizes, activation, weight_init):
 
 
 def save_weights(model, path):
-    """Save weights as flat numpy object array: [W0, b0, W1, b1, ...]"""
-    weights = []
-    for layer in model.layers:
-        weights.append(layer.W)
-        weights.append(layer.b)
-    # Save as object array so shapes are preserved
-    arr = np.empty(len(weights), dtype=object)
-    for i, w in enumerate(weights):
-        arr[i] = w
-    np.save(path, arr)
+    """Save as dict: {'W0': ..., 'b0': ..., 'W1': ..., 'b1': ...}"""
+    weights_dict = {}
+    for i, layer in enumerate(model.layers):
+        weights_dict[f'W{i}'] = layer.W
+        weights_dict[f'b{i}'] = layer.b
+    np.save(path, weights_dict)
 
 
 def main():
@@ -123,9 +119,7 @@ def main():
 
         if val_acc > best_val_acc:
             best_val_acc = val_acc
-            # Save to src/best_model.npy (where grader looks)
             save_weights(model, os.path.join(src_dir, "best_model.npy"))
-            # Also save config
             with open(os.path.join(src_dir, "config.json"), "w") as f:
                 json.dump(vars(args), f, indent=4)
 

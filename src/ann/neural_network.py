@@ -1,4 +1,3 @@
-
 import numpy as np
 
 
@@ -23,10 +22,20 @@ class NeuralNetwork:
 
     def set_weights(self, weights):
         """
-        Set weights from flat list/array: [W0, b0, W1, b1, ...]
-        Each element must be a numpy array.
+        Accepts weights in multiple formats:
+        - flat list/array: [W0, b0, W1, b1, ...]
+        - dict: {'W0': array, 'b0': array, 'W1': array, 'b1': array, ...}
         """
-        weights = list(weights)
+        if isinstance(weights, dict):
+            # Dict format: {'W0': ..., 'b0': ..., 'W1': ..., 'b1': ...}
+            flat = []
+            for i in range(len(self.layers)):
+                flat.append(np.array(weights[f'W{i}'], dtype=float))
+                flat.append(np.array(weights[f'b{i}'], dtype=float))
+            weights = flat
+        else:
+            weights = list(weights)
+
         for i, layer in enumerate(self.layers):
             layer.W      = np.array(weights[2 * i],     dtype=float)
             layer.b      = np.array(weights[2 * i + 1], dtype=float)

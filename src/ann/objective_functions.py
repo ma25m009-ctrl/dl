@@ -2,6 +2,11 @@ import numpy as np
 
 
 class CrossEntropy:
+
+    def __init__(self):
+        self.y_pred = None
+        self.y_true = None
+
     def forward(self, y_pred, y_true):
         self.y_pred = y_pred
         self.y_true = y_true
@@ -13,6 +18,11 @@ class CrossEntropy:
 
 
 class MSE:
+
+    def __init__(self):
+        self.y_pred = None
+        self.y_true = None
+
     def forward(self, y_pred, y_true):
         self.y_pred = y_pred
         self.y_true = y_true

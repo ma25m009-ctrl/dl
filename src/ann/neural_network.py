@@ -29,18 +29,16 @@ def _get_optimizer(name, lr):
 class NeuralNetwork:
 
     def __init__(self, config):
-        """
-        Build network from argparse.Namespace config with fields:
-          hidden_size, activation, weight_init, loss, optimizer,
-          learning_rate, weight_decay
-        """
-        hidden_sizes = config.hidden_size
-        activation   = config.activation
-        weight_init  = getattr(config, 'weight_init', 'xavier')
-        loss_name    = getattr(config, 'loss', 'cross_entropy')
-        opt_name     = getattr(config, 'optimizer', 'adam')
-        lr           = getattr(config, 'learning_rate', 0.001)
-        self.weight_decay = getattr(config, 'weight_decay', 0.0)
+        """Build network from argparse.Namespace config."""
+        # Support both --hidden_size and --sz argument names
+        hidden_sizes = (getattr(config, 'hidden_size', None) or
+                        getattr(config, 'sz', [128, 128]))
+        activation   = getattr(config, 'activation', None) or getattr(config, 'a', 'relu')
+        weight_init  = getattr(config, 'weight_init', None) or getattr(config, 'w_i', 'xavier')
+        loss_name    = getattr(config, 'loss', None) or getattr(config, 'l', 'cross_entropy')
+        opt_name     = getattr(config, 'optimizer', None) or getattr(config, 'o', 'adam')
+        lr           = getattr(config, 'learning_rate', None) or getattr(config, 'lr', 0.001)
+        self.weight_decay = getattr(config, 'weight_decay', None) or getattr(config, 'wd', 0.0)
 
         # Build layers
         self.layers = []
@@ -57,10 +55,7 @@ class NeuralNetwork:
         self.optimizer = _get_optimizer(opt_name, lr)
 
     def set_weights(self, weights):
-        """
-        Accept dict {'W0':..,'b0':..,'W1':..,'b1':..} 
-        or flat list/array [W0, b0, W1, b1, ...]
-        """
+        """Accept dict {'W0':..'b0':..} or flat list [W0, b0, W1, b1, ...]"""
         if isinstance(weights, dict):
             for i, layer in enumerate(self.layers):
                 layer.W      = np.array(weights[f'W{i}'], dtype=float)
@@ -68,10 +63,11 @@ class NeuralNetwork:
                 layer.grad_W = np.zeros_like(layer.W)
                 layer.grad_b = np.zeros_like(layer.b)
         else:
+            # flat list — each element is already an array, don't wrap in np.array()
             weights = list(weights)
             for i, layer in enumerate(self.layers):
-                layer.W      = np.array(weights[2*i],   dtype=float)
-                layer.b      = np.array(weights[2*i+1], dtype=float)
+                layer.W      = np.asarray(weights[2*i],   dtype=float)
+                layer.b      = np.asarray(weights[2*i+1], dtype=float)
                 layer.grad_W = np.zeros_like(layer.W)
                 layer.grad_b = np.zeros_like(layer.b)
 
@@ -83,7 +79,7 @@ class NeuralNetwork:
         return weights_dict
 
     def forward(self, X):
-        """Returns (output, cache) tuple as grader expects."""
+        """Returns (output, cache) tuple."""
         cache = []
         for layer, act in zip(self.layers, self.activations):
             X = layer.forward(X)
@@ -93,6 +89,9 @@ class NeuralNetwork:
         return X, cache
 
     def backward(self, y_true, y_pred):
+        # Ensure loss_fn has seen the predictions before backward
+        if not hasattr(self.loss_fn, 'y_pred'):
+            self.loss_fn.forward(y_pred, y_true)
         grad = self.loss_fn.backward()
         for layer, act in reversed(list(zip(self.layers, self.activations))):
             grad = act.backward(grad)
